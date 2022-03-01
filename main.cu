@@ -43,7 +43,7 @@ int main() {
 
     double *cudaResults;
     cudaMalloc(&cudaResults, sizeof(double) * n);
-    kernel<<<256, 256>>>(cudaFirst, cudaSecond, n, cudaResults);
+    kernel<<<1024, 1024>>>(cudaFirst, cudaSecond, n, cudaResults);
     cudaFree(cudaFirst);
     cudaFree(cudaSecond);
 
@@ -51,8 +51,9 @@ int main() {
     cudaMemcpy(results, cudaResults, sizeof(double) * n, cudaMemcpyDeviceToHost);
     cudaFree(cudaResults);
 
+    cout << setprecision(10) << scientific;
     for (unsigned int i = 0; i < n; ++i) {
-        cout << setprecision(10) << scientific << results[i] << " ";
+        cout << results[i] << " ";
     }
 
     delete[] results;
