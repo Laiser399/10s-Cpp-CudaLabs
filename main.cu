@@ -1,8 +1,11 @@
 #include <iostream>
 #include <iomanip>
 
-using std::cin, std::cout, std::endl;
-using std::setprecision, std::scientific;
+using std::cin;
+using std::cout;
+using std::endl;
+using std::setprecision;
+using std::scientific;
 using std::string;
 
 __global__ void kernel(const double *first, const double *second, unsigned int n, double *results) {

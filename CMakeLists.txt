@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.21)
 project(Lab1 CUDA)
 
-set(CMAKE_CUDA_STANDARD 17)
+set(CMAKE_CUDA_STANDARD 14)
 
 add_executable(Lab1 main.cu)
 
