@@ -1,0 +1,1 @@
+type %1 | .\cmake-build-debug\Lab1.exe
