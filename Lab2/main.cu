@@ -6,6 +6,7 @@
 using std::ifstream;
 using std::ofstream;
 using std::cout;
+using std::cin;
 using std::endl;
 using std::string;
 using std::ios_base;
@@ -85,8 +86,9 @@ int main(int argc, char *argv[]) {
         targetSize.width = std::stoi(argv[3]);
         targetSize.height = std::stoi(argv[4]);
     } else {
-        cout << "Wrong count of arguments." << endl;
-        return 1;
+        cin >> sourceFilePath;
+        cin >> targetFilePath;
+        cin >> targetSize.width >> targetSize.height;
     }
 
     // read source
