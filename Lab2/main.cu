@@ -1,10 +1,14 @@
 #include <iostream>
 #include <cstdio>
+#include <string>
+#include <fstream>
 
-using std::fstream;
 using std::ifstream;
+using std::ofstream;
 using std::cout;
 using std::endl;
+using std::string;
+using std::ios_base;
 
 #define CSC(call)                                                               \
     {                                                                           \
@@ -60,23 +64,32 @@ bool isValidSizes(const size2D &sourceSize, const size2D &targetSize) {
     return true;
 }
 
-int main() {
+int main(int argc, char *argv[]) {
     size2D targetSize{};
-    targetSize.width = 960;
-    targetSize.height = 540;
-    auto sourceFilePath = "..\\image1_binary";
-    auto targetFilePath = "..\\image1_binary_res";
-
-    size2D sourceSize{};
+    string sourceFilePath;
+    string targetFilePath;
+    if (argc == 5) {
+        sourceFilePath = argv[1];
+        targetFilePath = argv[2];
+        targetSize.width = std::stoi(argv[3]);
+        targetSize.height = std::stoi(argv[4]);
+    } else {
+        cout << "Wrong count of arguments." << endl;
+        return 1;
+    }
 
     // read source
-    FILE *file = fopen(sourceFilePath, "rb");
-    fread(&sourceSize.width, sizeof(int), 1, file);
-    fread(&sourceSize.height, sizeof(int), 1, file);
-    auto *data = new uchar4[sourceSize.getSize()];
-    fread(data, sizeof(uchar4), sourceSize.getSize(), file);
-    fclose(file);
+    ifstream input(sourceFilePath, ios_base::binary);
 
+    size2D sourceSize{};
+    input.read((char *) &sourceSize.width, sizeof(sourceSize.width));
+    input.read((char *) &sourceSize.height, sizeof(sourceSize.height));
+
+    auto *data = new uchar4[sourceSize.getSize()];
+    input.read((char *) data, (long long) sizeof(data[0]) * sourceSize.getSize());
+    input.close();
+
+    // validate inputs
     if (!isValidSizes(sourceSize, targetSize)) {
         cout << "Error: wrong target image size." << endl;
         return 1;
@@ -121,11 +134,11 @@ int main() {
     CSC(cudaFree(cudaResult))
 
     // save result
-    FILE *outFile = fopen(targetFilePath, "wb");
-    fwrite(&targetSize.width, 1, sizeof(targetSize.height), outFile);
-    fwrite(&targetSize.height, 1, sizeof(targetSize.height), outFile);
-    fwrite(localResult, sizeof(localResult[0]), targetSize.getSize(), outFile);
-    fclose(outFile);
+    ofstream output(targetFilePath, ios_base::binary);
+    output.write((char *) &targetSize.width, sizeof(targetSize.width));
+    output.write((char *) &targetSize.height, sizeof(targetSize.height));
+    output.write((char *) localResult, (long long) sizeof(localResult[0]) * targetSize.getSize());
+    output.close();
 
     delete[] localResult;
 
