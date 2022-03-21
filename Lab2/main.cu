@@ -93,6 +93,10 @@ int main(int argc, char *argv[]) {
 
     // read source
     ifstream input(sourceFilePath, ios_base::binary);
+    if (!input.is_open()) {
+        cout << "Could not open source file." << endl;
+        return 1;
+    }
 
     size2D sourceSize{};
     input.read((char *) &sourceSize.width, sizeof(sourceSize.width));
@@ -148,6 +152,10 @@ int main(int argc, char *argv[]) {
 
     // save result
     ofstream output(targetFilePath, ios_base::binary);
+    if (!output.is_open()) {
+        cout << "Could not open target file." << endl;
+        return 1;
+    }
     output.write((char *) &targetSize.width, sizeof(targetSize.width));
     output.write((char *) &targetSize.height, sizeof(targetSize.height));
     output.write((char *) localResult, (long long) sizeof(localResult[0]) * targetSize.getSize());
