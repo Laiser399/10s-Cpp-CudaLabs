@@ -35,20 +35,31 @@ __global__ void kernel(cudaTextureObject_t source, uchar4 *target, size2D source
     auto threadIdX = blockDim.x * blockIdx.x + threadIdx.x;
     auto threadIdY = blockDim.y * blockIdx.y + threadIdx.y;
 
-    auto compressionCoefficientX = sourceSize.width / targetSize.width;
-    auto compressionCoefficientY = sourceSize.height / targetSize.height;
+    auto xCompressionCoefficient = sourceSize.width / targetSize.width;
+    auto yCompressionCoefficient = sourceSize.height / targetSize.height;
+    auto compressionBlockSize = xCompressionCoefficient * yCompressionCoefficient;
 
     for (unsigned int i = threadIdX; i < targetSize.width; i += totalThreadsCountX) {
         for (unsigned int j = threadIdY; j < targetSize.height; j += totalThreadsCountY) {
-            auto a = tex2D<uchar4>(source, compressionCoefficientX * i, compressionCoefficientY * j);
-            auto b = tex2D<uchar4>(source, compressionCoefficientX * i + 1, compressionCoefficientY * j);
-            auto c = tex2D<uchar4>(source, compressionCoefficientX * i, compressionCoefficientY * j + 1);
-            auto d = tex2D<uchar4>(source, compressionCoefficientX * i + 1, compressionCoefficientY * j + 1);
-            auto avgR = (a.x + b.x + c.x + d.x) / 4;
-            auto avgG = (a.y + b.y + c.y + d.y) / 4;
-            auto avgB = (a.z + b.z + c.z + d.z) / 4;
-            auto avgA = (a.w + b.w + c.w + d.w) / 4;
-            target[j * targetSize.width + i] = make_uchar4(avgR, avgG, avgB, avgA);
+
+            auto rSum = 0, gSum = 0, bSum = 0, aSum = 0;
+            for (int xShift = 0; xShift < xCompressionCoefficient; ++xShift) {
+                for (int yShift = 0; yShift < yCompressionCoefficient; ++yShift) {
+                    auto x = xCompressionCoefficient * i + xShift;
+                    auto y = yCompressionCoefficient * j + yShift;
+                    auto pixel = tex2D<uchar4>(source,(float) x,(float) y);
+                    rSum += pixel.x;
+                    gSum += pixel.y;
+                    bSum += pixel.z;
+                    aSum += pixel.w;
+                }
+            }
+
+            target[j * targetSize.width + i] = make_uchar4(
+                    rSum / compressionBlockSize,
+                    gSum / compressionBlockSize,
+                    bSum / compressionBlockSize,
+                    aSum / compressionBlockSize);
         }
     }
 }
