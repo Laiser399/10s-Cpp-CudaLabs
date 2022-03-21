@@ -7,6 +7,7 @@ using std::ifstream;
 using std::ofstream;
 using std::cout;
 using std::cin;
+using std::cerr;
 using std::endl;
 using std::string;
 using std::ios_base;
@@ -15,7 +16,7 @@ using std::ios_base;
     {                                                                           \
         auto error = call;                                                      \
         if (error != cudaSuccess) {                                             \
-            cout << "Error " << cudaGetErrorName(error) << " in file \""        \
+            cerr << "Error " << cudaGetErrorName(error) << " in file \""        \
                  << __FILE__ << "\", at line " << __LINE__ << ". "              \
                  << "Message: " << cudaGetErrorString(error) << endl;           \
             exit(1);                                                            \
@@ -94,7 +95,7 @@ int main(int argc, char *argv[]) {
     // read source
     ifstream input(sourceFilePath, ios_base::binary);
     if (!input.is_open()) {
-        cout << "Could not open source file." << endl;
+        cerr << "Could not open source file." << endl;
         return 1;
     }
 
@@ -108,7 +109,7 @@ int main(int argc, char *argv[]) {
 
     // validate inputs
     if (!isValidSizes(sourceSize, targetSize)) {
-        cout << "Error: wrong target image size." << endl;
+        cerr << "Error: wrong target image size." << endl;
         return 1;
     }
 
@@ -153,7 +154,7 @@ int main(int argc, char *argv[]) {
     // save result
     ofstream output(targetFilePath, ios_base::binary);
     if (!output.is_open()) {
-        cout << "Could not open target file." << endl;
+        cerr << "Could not open target file." << endl;
         return 1;
     }
     output.write((char *) &targetSize.width, sizeof(targetSize.width));
