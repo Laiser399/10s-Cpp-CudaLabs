@@ -113,25 +113,28 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // move data to cuda memory
+    // move data to device
     cudaArray *cudaData;
-    size_t pitch;
-    CSC(cudaMallocPitch(&cudaData, &pitch, sourceSize.width * sizeof(uchar4), sourceSize.height))
-    CSC(cudaMemcpy2D(cudaData, pitch, data,
-                     sourceSize.width * sizeof(uchar4), sourceSize.width * sizeof(uchar4), sourceSize.height,
-                     cudaMemcpyHostToDevice))
+    auto channel = cudaCreateChannelDesc<uchar4>();
+    auto sourcePitch = sizeof(uchar4) * sourceSize.width;
+    CSC(cudaMallocArray(&cudaData, &channel, sourceSize.width, sourceSize.height))
+    CSC(cudaMemcpy2DToArray(cudaData, 0, 0, data,
+                            sourcePitch,
+                            sizeof(uchar4) * sourceSize.width,
+                            sourceSize.height,
+                            cudaMemcpyHostToDevice))
     delete[] data;
 
     // creating texture
     cudaTextureObject_t tex;
     cudaResourceDesc resDesc{};
-    resDesc.resType = cudaResourceTypePitch2D;
-    resDesc.res.pitch2D.devPtr = cudaData;
-    resDesc.res.pitch2D.width = sourceSize.width;
-    resDesc.res.pitch2D.height = sourceSize.height;
-    resDesc.res.pitch2D.desc = cudaCreateChannelDesc<uchar4>();
-    resDesc.res.pitch2D.pitchInBytes = pitch;
+    resDesc.resType = cudaResourceTypeArray;
+    resDesc.res.array.array = cudaData;
     cudaTextureDesc texDesc{};
+    texDesc.addressMode[0] = cudaAddressModeClamp;
+    texDesc.addressMode[1] = cudaAddressModeClamp;
+    texDesc.filterMode = cudaFilterModePoint;
+    texDesc.normalizedCoords = false;
     CSC(cudaCreateTextureObject(&tex, &resDesc, &texDesc, nullptr))
 
     // allocating memory for result
@@ -148,7 +151,7 @@ int main(int argc, char *argv[]) {
     CSC(cudaMemcpy(localResult, cudaResult, sizeof(localResult[0]) * targetSize.getSize(),
                    cudaMemcpyDeviceToHost))
     CSC(cudaDestroyTextureObject(tex))
-    CSC(cudaFree(cudaData))
+    CSC(cudaFreeArray(cudaData))
     CSC(cudaFree(cudaResult))
 
     // save result
