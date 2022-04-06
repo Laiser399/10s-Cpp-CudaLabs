@@ -31,7 +31,8 @@ struct size2D {
     }
 };
 
-__global__ void kernel(cudaTextureObject_t source, uchar4 *target, size2D sourceSize, size2D targetSize) {
+__global__ void kernel(cudaTextureObject_t source, uchar4 *target,
+                       size2D sourceSize, size2D targetSize) {
     auto totalThreadsCountX = gridDim.x * blockDim.x;
     auto totalThreadsCountY = gridDim.y * blockDim.y;
     auto threadIdX = blockDim.x * blockIdx.x + threadIdx.x;
