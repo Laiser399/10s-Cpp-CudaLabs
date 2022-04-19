@@ -59,7 +59,34 @@ void calcMultiThread(const double *first, const double *second, unsigned int n, 
     }
 }
 
-void testCpu(int n) {
+long long testCpuMultiThread(int n) {
+    cout << "Start cpu test" << endl;
+
+    auto *first = new double[n], *second = new double[n], *results = new double[n];
+    for (int i = 0; i < n; ++i) {
+        first[i] = rand();
+        second[i] = rand();
+    }
+    cout << "Values init done" << endl;
+
+    auto start = steady_clock::now();
+    calcMultiThread(first, second, n, results);
+    auto end = steady_clock::now();
+    auto elapsedMs = duration_cast<milliseconds>(end - start).count();
+    cout << "Multi thread calc done in " << elapsedMs << "ms" << endl;
+
+    cout << "---Testing---" << endl;
+    for (int i = 0; i < n; ++i) {
+        if (results[i] < first[i] || results[i] < second[i]) {
+            cout << "failed: " << first[i] << ", " << second[i] << " -> " << results[i] << endl;
+        }
+    }
+    cout << "---Testing done---" << endl;
+
+    return elapsedMs;
+}
+
+long long testCpuSingleThread(int n) {
     cout << "Start cpu test" << endl;
 
     auto *first = new double[n], *second = new double[n], *results = new double[n];
@@ -72,11 +99,8 @@ void testCpu(int n) {
     auto start = steady_clock::now();
     calcSingleThread(first, second, n, results);
     auto end = steady_clock::now();
-
-    start = steady_clock::now();
-    calcMultiThread(first, second, n, results);
-    end = steady_clock::now();
-    cout << "Multi thread calc done in " << duration_cast<milliseconds>(end - start).count() << "ms" << endl;
+    auto elapsedMs = duration_cast<milliseconds>(end - start).count();
+    cout << "Single thread calc done in " << elapsedMs << "ms" << endl;
 
     cout << "---Testing---" << endl;
     for (int i = 0; i < n; ++i) {
@@ -85,9 +109,11 @@ void testCpu(int n) {
         }
     }
     cout << "---Testing done---" << endl;
+
+    return elapsedMs;
 }
 
-void testGpu(int n) {
+float testGpu(int n) {
 
     cout << "Start cuda test" << endl;
 
@@ -140,13 +166,36 @@ void testGpu(int n) {
     delete[] first;
     delete[] second;
     delete[] results;
+
+    return elapsedMs;
 }
 
 int main() {
-    const int n = 100000000;
+    const int n = 1000000;
 
-    testCpu(n);
-    testGpu(n);
+    cout << "Values count: " << n << endl << endl;
+
+    auto testCount = 10;
+
+    auto elapsedSum = 0.0;
+    for (int i = 0; i < testCount; ++i) {
+        cout << "---Test:" << i << "---" << endl;
+        elapsedSum += testGpu(n);
+        cout << endl;
+    }
+    cout << "Average elapsed time: " << elapsedSum / testCount << "ms" << endl;
+
+
+    auto elapsedSingleThreadSum = 0.0;
+    auto elapsedMultiThreadSum = 0.0;
+    for (int i = 0; i < testCount; ++i) {
+        cout << "---Test:" << i << "---" << endl;
+        elapsedSingleThreadSum += (double) testCpuSingleThread(n);
+        elapsedMultiThreadSum += (double) testCpuMultiThread(n);
+        cout << endl;
+    }
+    cout << "Average elapsed time in single: " << elapsedSingleThreadSum / testCount << "ms" << endl;
+    cout << "Average elapsed time in multi: " << elapsedMultiThreadSum / testCount << "ms" << endl;
 
     return 0;
 }
