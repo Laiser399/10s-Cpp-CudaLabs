@@ -6,12 +6,14 @@
 
 using std::cout;
 using std::cin;
+using std::cerr;
 using std::endl;
 using std::ifstream;
 using std::istream;
 using std::string;
 using std::vector;
 using std::tuple;
+using std::ios_base;
 
 
 class ProgramConfiguration {
@@ -39,6 +41,15 @@ public:
 
     const vector<vector<tuple<int, int>>> &getSamples() const {
         return samples;
+    }
+};
+
+
+struct Size2D {
+    int width, height;
+
+    int getSize() const {
+        return width * height;
     }
 };
 
@@ -75,6 +86,11 @@ ProgramConfiguration readProgramConfiguration(int argc, char *argv[]) {
         auto configurationFilePath = argv[1];
 
         ifstream inputFile(configurationFilePath);
+        if (!inputFile.is_open()) {
+            cerr << "Could not open configuration file \"" << configurationFilePath << "\"" << endl;
+            exit(1);
+        }
+
         auto configuration = readProgramConfiguration(inputFile);
         inputFile.close();
 
@@ -85,8 +101,33 @@ ProgramConfiguration readProgramConfiguration(int argc, char *argv[]) {
 }
 
 
+tuple<Size2D, uchar4*> readInputData(const ProgramConfiguration &configuration) {
+    ifstream input(configuration.getInputFilePath(), ios_base::binary);
+
+    if (!input.is_open()) {
+        cerr << "Could not open input file." << endl;
+        exit(1);
+    }
+
+    Size2D sourceSize{};
+    input.read((char *) &sourceSize.width, sizeof(sourceSize.width));
+    input.read((char *) &sourceSize.height, sizeof(sourceSize.height));
+
+    auto *data = new uchar4[sourceSize.getSize()];
+    input.read((char *) data, (long long) sizeof(data[0]) * sourceSize.getSize());
+
+    input.close();
+}
+
+
 int main(int argc, char *argv[]) {
     auto configuration = readProgramConfiguration(argc, argv);
+
+    Size2D dataSize{};
+    uchar4* data;
+    std::tie(dataSize, data) = readInputData(configuration);
+
+
 
     return 0;
 }
