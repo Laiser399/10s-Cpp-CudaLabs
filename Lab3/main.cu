@@ -261,17 +261,17 @@ int main(int argc, char *argv[]) {
     // to GPU
     uchar4 *cudaData;
     char *cudaResults;
-    cudaMalloc(&cudaData, sizeof(uchar4) * dataSize.getSize());
-    cudaMemcpy(cudaData, data, sizeof(uchar4) * dataSize.getSize(), cudaMemcpyHostToDevice);
-    cudaMalloc(&cudaResults, sizeof(char) * dataSize.getSize());
+    CSC(cudaMalloc(&cudaData, sizeof(uchar4) * dataSize.getSize()))
+    CSC(cudaMemcpy(cudaData, data, sizeof(uchar4) * dataSize.getSize(), cudaMemcpyHostToDevice))
+    CSC(cudaMalloc(&cudaResults, sizeof(char) * dataSize.getSize()))
 
     kernel<<<dim3(32, 32), dim3(32, 32)>>>(cudaData, dataSize, cudaResults);
 
     // from GPU
     auto *results = new char[dataSize.getSize()];
-    cudaMemcpy(results, cudaResults, sizeof(char) * dataSize.getSize(), cudaMemcpyDeviceToHost);
-    cudaFree(cudaData);
-    cudaFree(cudaResults);
+    CSC(cudaMemcpy(results, cudaResults, sizeof(char) * dataSize.getSize(), cudaMemcpyDeviceToHost))
+    CSC(cudaFree(cudaData))
+    CSC(cudaFree(cudaResults))
 
     applyResultsToData(data, dataSize, results);
     saveOutput(configuration, data, dataSize);
