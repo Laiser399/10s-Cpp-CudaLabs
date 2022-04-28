@@ -143,7 +143,7 @@ tuple<Size2D, uchar4 *> readInputData(const ProgramConfiguration &configuration)
 
     input.close();
 
-    return {sourceSize, data};
+    return tuple<Size2D, uchar4 *>{sourceSize, data};
 }
 
 
@@ -194,9 +194,9 @@ __global__ void kernel(uchar4 *data, Size2D dataSize, char *results) {
             for (auto i = 0; i < cudaClassCount; ++i) {
                 auto avg = cudaClassesAverageValues[i];
 
-                auto sum = pow((double) p.x - avg.x, 2)
-                           + pow((double) p.y - avg.y, 2)
-                           + pow((double) p.z - avg.z, 2);
+                auto sum = powf((float) p.x - (float) avg.x, 2)
+                           + powf((float) p.y - (float) avg.y, 2)
+                           + powf((float) p.z - (float) avg.z, 2);
 
                 if (sum < bestClassSum || bestClassSum < 0) {
                     bestClassSum = sum;
