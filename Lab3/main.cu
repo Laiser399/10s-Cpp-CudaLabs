@@ -147,26 +147,25 @@ tuple<Size2D, uchar4 *> readInputData(const ProgramConfiguration &configuration)
 }
 
 
-vector<uchar4> calculateClassesAverageValues(const ProgramConfiguration &configuration, uchar4 *data, Size2D dataSize) {
-    vector<uchar4> classesAverageValues;
+vector<float3> calculateClassesAverageValues(const ProgramConfiguration &configuration, uchar4 *data, Size2D dataSize) {
+    vector<float3> classesAverageValues;
     for (const auto &classSamples: configuration.getSamples()) {
-        double r = 0, g = 0, b = 0;
+        float r = 0, g = 0, b = 0;
 
         for (const auto &samplePixelCoord: classSamples) {
             auto x = std::get<0>(samplePixelCoord);
             auto y = std::get<1>(samplePixelCoord);
 
             auto pixel = data[y * dataSize.height + x];
-            r += pixel.x;
-            g += pixel.y;
-            b += pixel.z;
+            r += (float) pixel.x;
+            g += (float) pixel.y;
+            b += (float) pixel.z;
         }
 
-        classesAverageValues.push_back(uchar4{
-                (unsigned char) (r / (double) classSamples.size()),
-                (unsigned char) (g / (double) classSamples.size()),
-                (unsigned char) (b / (double) classSamples.size()),
-                (unsigned char) 0
+        classesAverageValues.push_back(float3{
+                (r / (float) classSamples.size()),
+                (g / (float) classSamples.size()),
+                (b / (float) classSamples.size())
         });
     }
 
@@ -175,7 +174,7 @@ vector<uchar4> calculateClassesAverageValues(const ProgramConfiguration &configu
 
 
 __constant__ int cudaClassCount;
-__constant__ uchar4 cudaClassesAverageValues[MAX_CLASS_COUNT];
+__constant__ float3 cudaClassesAverageValues[MAX_CLASS_COUNT];
 
 
 __global__ void kernel(uchar4 *data, Size2D dataSize, char *results) {
@@ -189,16 +188,16 @@ __global__ void kernel(uchar4 *data, Size2D dataSize, char *results) {
         for (auto y = threadIndexY; y < dataSize.height; y += totalThreadsCountY) {
             auto p = data[y * dataSize.width + x];
 
-            auto bestClassIndex = cudaClassCount;
-            auto bestClassSum = -1.0;
+            int bestClassIndex = -1;
+            float bestClassSum = 0;
             for (auto i = 0; i < cudaClassCount; ++i) {
                 auto avg = cudaClassesAverageValues[i];
 
-                auto sum = powf((float) p.x - (float) avg.x, 2)
-                           + powf((float) p.y - (float) avg.y, 2)
-                           + powf((float) p.z - (float) avg.z, 2);
+                auto sum = powf((float) p.x - avg.x, 2)
+                           + powf((float) p.y - avg.y, 2)
+                           + powf((float) p.z - avg.z, 2);
 
-                if (sum < bestClassSum || bestClassSum < 0) {
+                if (sum < bestClassSum || bestClassIndex == -1) {
                     bestClassSum = sum;
                     bestClassIndex = i;
                 }
@@ -255,7 +254,7 @@ int main(int argc, char *argv[]) {
     CSC(cudaMemcpyToSymbol(
             cudaClassesAverageValues,
             &*classesAverageValues.begin(),
-            sizeof(uchar4) * configuration.getClassCount()
+            sizeof(float3) * configuration.getClassCount()
     ))
 
     // to GPU
