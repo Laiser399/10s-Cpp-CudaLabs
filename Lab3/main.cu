@@ -156,7 +156,7 @@ vector<float3> calculateClassesAverageValues(const ProgramConfiguration &configu
             auto x = std::get<0>(samplePixelCoord);
             auto y = std::get<1>(samplePixelCoord);
 
-            auto pixel = data[y * dataSize.height + x];
+            auto pixel = data[y * dataSize.width + x];
             r += (float) pixel.x;
             g += (float) pixel.y;
             b += (float) pixel.z;
