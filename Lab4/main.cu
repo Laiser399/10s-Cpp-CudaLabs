@@ -20,18 +20,18 @@ using std::setprecision;
 using std::scientific;
 
 
-struct floatAbsComparator {
-    __host__ __device__ bool operator()(float a, float b) {
+struct doubleAbsComparator {
+    __host__ __device__ bool operator()(double a, double b) {
         return abs(a) < abs(b);
     }
 };
 
 
-tuple<int, float *> readAndPrepareInput(istream &input) {
+tuple<int, double *> readAndPrepareInput(istream &input) {
     int matrixSize;
     input >> matrixSize;
 
-    auto *matrix = new float[matrixSize * matrixSize * 2];
+    auto *matrix = new double[matrixSize * matrixSize * 2];
 
     for (auto row = 0; row < matrixSize; ++row) {
         for (auto column = 0; column < matrixSize; ++column) {
@@ -46,11 +46,11 @@ tuple<int, float *> readAndPrepareInput(istream &input) {
         }
     }
 
-    return tuple<int, float *>{matrixSize, matrix};
+    return tuple<int, double *>{matrixSize, matrix};
 }
 
 
-tuple<int, float *> readAndPrepareInput(int argc, char *argv[]) {
+tuple<int, double *> readAndPrepareInput(int argc, char *argv[]) {
     if (argc == 2) {
         auto inputFilePath = argv[1];
 
@@ -71,7 +71,7 @@ tuple<int, float *> readAndPrepareInput(int argc, char *argv[]) {
 }
 
 
-__global__ void swapRowsKernel(float *matrix, int matrixSize, int i, int j, int startColumn) {
+__global__ void swapRowsKernel(double *matrix, int matrixSize, int i, int j, int startColumn) {
     auto threadCount = gridDim.x * blockDim.x;
     auto threadIndex = blockDim.x * blockIdx.x + threadIdx.x;
 
@@ -83,7 +83,7 @@ __global__ void swapRowsKernel(float *matrix, int matrixSize, int i, int j, int 
 }
 
 
-__global__ void nullifyRowsBelowKernel(float *matrix, int matrixSize, int diagonalIndex) {
+__global__ void nullifyRowsBelowKernel(double *matrix, int matrixSize, int diagonalIndex) {
     auto threadCount = gridDim.x * blockDim.x;
     auto threadIndex = blockDim.x * blockIdx.x + threadIdx.x;
 
@@ -96,7 +96,7 @@ __global__ void nullifyRowsBelowKernel(float *matrix, int matrixSize, int diagon
 }
 
 
-__global__ void nullifyRowsAboveKernel(float *matrix, int matrixSize, int diagonalIndex) {
+__global__ void nullifyRowsAboveKernel(double *matrix, int matrixSize, int diagonalIndex) {
     auto threadCount = gridDim.x * blockDim.x;
     auto threadIndex = blockDim.x * blockIdx.x + threadIdx.x;
 
@@ -109,7 +109,7 @@ __global__ void nullifyRowsAboveKernel(float *matrix, int matrixSize, int diagon
 }
 
 
-__global__ void normalizeDiagonalKernel(float *matrix, int matrixSize) {
+__global__ void normalizeDiagonalKernel(double *matrix, int matrixSize) {
     auto threadCount = gridDim.x * blockDim.x;
     auto threadIndex = blockDim.x * blockIdx.x + threadIdx.x;
 
@@ -121,7 +121,7 @@ __global__ void normalizeDiagonalKernel(float *matrix, int matrixSize) {
 }
 
 
-void writeMatrix(ostream &output, float *matrix, int matrixSize) {
+void writeMatrix(ostream &output, double *matrix, int matrixSize) {
     for (auto row = 0; row < matrixSize; ++row) {
         for (auto column = 0; column < matrixSize; ++column) {
             output << matrix[column * matrixSize + row] << " ";
@@ -139,12 +139,12 @@ int main(int argc, char *argv[]) {
      */
 
     int matrixSize;
-    float *matrix;
+    double *matrix;
     std::tie(matrixSize, matrix) = readAndPrepareInput(argc, argv);
 
-    float *cudaMatrix;
-    cudaMalloc(&cudaMatrix, sizeof(float) * matrixSize * matrixSize * 2);
-    cudaMemcpy(cudaMatrix, matrix, sizeof(float) * matrixSize * matrixSize * 2, cudaMemcpyHostToDevice);
+    double *cudaMatrix;
+    cudaMalloc(&cudaMatrix, sizeof(double) * matrixSize * matrixSize * 2);
+    cudaMemcpy(cudaMatrix, matrix, sizeof(double) * matrixSize * matrixSize * 2, cudaMemcpyHostToDevice);
 
     // Forward step
     auto cudaMatrixDevicePtr = thrust::device_pointer_cast(cudaMatrix);
@@ -153,14 +153,14 @@ int main(int argc, char *argv[]) {
         auto maxElementPtr = thrust::max_element(
                 columnPtr + diagonalIndex,
                 columnPtr + matrixSize,
-                floatAbsComparator()
+                doubleAbsComparator()
         );
         auto maxElementRowIndex = (int) (maxElementPtr - columnPtr);
-        float tm;
+        double tm;
         cudaMemcpy(
                 &tm,
                 cudaMatrix + diagonalIndex * matrixSize + maxElementRowIndex,
-                sizeof(float),
+                sizeof(double),
                 cudaMemcpyDeviceToHost
         );
         if (tm == 0) {
@@ -183,7 +183,7 @@ int main(int argc, char *argv[]) {
     // Last step
     normalizeDiagonalKernel<<<1024, 1024>>>(cudaMatrix, matrixSize);
 
-    cudaMemcpy(matrix, cudaMatrix, sizeof(float) * matrixSize * matrixSize * 2, cudaMemcpyDeviceToHost);
+    cudaMemcpy(matrix, cudaMatrix, sizeof(double) * matrixSize * matrixSize * 2, cudaMemcpyDeviceToHost);
     cudaFree(cudaMatrix);
 
     cout << setprecision(10) << scientific;
