@@ -2,7 +2,8 @@
 #include <tuple>
 #include <string>
 #include <fstream>
-#include "thrust/device_vector.h"
+#include <thrust/extrema.h>
+#include <thrust/device_ptr.h>
 #include <iomanip>
 
 
