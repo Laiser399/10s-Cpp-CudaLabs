@@ -147,7 +147,11 @@ tuple<Size2D, uchar4 *> readInputData(const ProgramConfiguration &configuration)
 }
 
 
-vector<float3> calculateClassesAverageValues(const ProgramConfiguration &configuration, uchar4 *data, Size2D dataSize) {
+vector<float3> calculateClassesAverageValues(
+        const ProgramConfiguration &configuration,
+        uchar4 *data,
+        Size2D dataSize
+) {
     vector<float3> classesAverageValues;
     for (const auto &classSamples: configuration.getSamples()) {
         float r = 0, g = 0, b = 0;
