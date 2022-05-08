@@ -224,27 +224,28 @@ void cpuKernel(
         uchar4 *data, Size2D dataSize, char *results,
         int threadIndex, int threadCount
 ) {
-    for (auto x = threadIndex; x < dataSize.width; x += threadCount) {
-        for (auto y = threadIndex; y < dataSize.height; y += threadCount) {
-            auto p = data[y * dataSize.width + x];
+    for (auto i = threadIndex; i < dataSize.getSize(); ++i) {
+        auto x = i % dataSize.width;
+        auto y = i / dataSize.width;
 
-            int bestClassIndex = -1;
-            float bestClassSum = 0;
-            for (auto i = 0; i < cudaClassCount; ++i) {
-                auto avg = cudaClassesAverageValues[i];
+        auto p = data[y * dataSize.width + x];
 
-                auto sum = powf((float) p.x - avg.x, 2)
-                           + powf((float) p.y - avg.y, 2)
-                           + powf((float) p.z - avg.z, 2);
+        int bestClassIndex = -1;
+        float bestClassSum = 0;
+        for (auto j = 0; j < classesAverageValues.size(); ++j) {
+            auto avg = classesAverageValues[j];
 
-                if (sum < bestClassSum || bestClassIndex == -1) {
-                    bestClassSum = sum;
-                    bestClassIndex = i;
-                }
+            auto sum = powf((float) p.x - avg.x, 2)
+                       + powf((float) p.y - avg.y, 2)
+                       + powf((float) p.z - avg.z, 2);
+
+            if (sum < bestClassSum || bestClassIndex == -1) {
+                bestClassSum = sum;
+                bestClassIndex = j;
             }
-
-            results[y * dataSize.width + x] = (char) bestClassIndex;
         }
+
+        results[y * dataSize.width + x] = (char) bestClassIndex;
     }
 }
 
@@ -312,6 +313,22 @@ float testGpu(
         dim3 testGridDim, dim3 testBlockDim,
         int testCount
 ) {
+    auto classCount = classesAverageValues.size();
+    CSC(cudaMemcpyToSymbol(
+            cudaClassCount,
+            &classCount,
+            sizeof(int)
+    ))
+    CSC(cudaMemcpyToSymbol(
+            cudaClassesAverageValues,
+            &*classesAverageValues.begin(),
+            sizeof(float3) * classCount
+    ))
+
+    uchar4 *cudaData;
+    CSC(cudaMalloc(&cudaData, sizeof(uchar4) * dataSize.getSize()))
+    CSC(cudaMemcpy(cudaData, data, sizeof(uchar4) * dataSize.getSize(), cudaMemcpyHostToDevice))
+
     char *cudaResults;
     CSC(cudaMalloc(&cudaResults, sizeof(char) * dataSize.getSize()))
 
@@ -321,7 +338,7 @@ float testGpu(
         CSC(cudaEventCreate(&startEvent))
         CSC(cudaEventCreate(&endEvent))
         CSC(cudaEventRecord(startEvent))
-        kernel<<<testGridDim, testBlockDim>>>(data, dataSize, cudaResults);
+        kernel<<<testGridDim, testBlockDim>>>(cudaData, dataSize, cudaResults);
         CSC(cudaDeviceSynchronize())
         CSC(cudaGetLastError())
         CSC(cudaEventRecord(endEvent))
