@@ -3,6 +3,8 @@
 #include <tuple>
 #include <utility>
 #include <vector>
+#include <thread>
+#include <chrono>
 
 using std::cout;
 using std::cin;
@@ -15,6 +17,10 @@ using std::string;
 using std::vector;
 using std::tuple;
 using std::ios_base;
+using std::thread;
+using std::chrono::steady_clock;
+using std::chrono::nanoseconds;
+using std::chrono::duration_cast;
 
 
 #define MAX_CLASS_COUNT 32
@@ -213,6 +219,36 @@ __global__ void kernel(uchar4 *data, Size2D dataSize, char *results) {
 }
 
 
+void cpuKernel(
+        const vector<float3> &classesAverageValues,
+        uchar4 *data, Size2D dataSize, char *results,
+        int threadIndex, int threadCount
+) {
+    for (auto x = threadIndex; x < dataSize.width; x += threadCount) {
+        for (auto y = threadIndex; y < dataSize.height; y += threadCount) {
+            auto p = data[y * dataSize.width + x];
+
+            int bestClassIndex = -1;
+            float bestClassSum = 0;
+            for (auto i = 0; i < cudaClassCount; ++i) {
+                auto avg = cudaClassesAverageValues[i];
+
+                auto sum = powf((float) p.x - avg.x, 2)
+                           + powf((float) p.y - avg.y, 2)
+                           + powf((float) p.z - avg.z, 2);
+
+                if (sum < bestClassSum || bestClassIndex == -1) {
+                    bestClassSum = sum;
+                    bestClassIndex = i;
+                }
+            }
+
+            results[y * dataSize.width + x] = (char) bestClassIndex;
+        }
+    }
+}
+
+
 void applyResultsToData(uchar4 *data, Size2D dataSize, const char *results) {
     for (auto i = 0; i < dataSize.height; ++i) {
         for (auto j = 0; j < dataSize.width; ++j) {
@@ -239,15 +275,119 @@ void saveOutput(const ProgramConfiguration &configuration, uchar4 *data, Size2D 
 }
 
 
-int main(int argc, char *argv[]) {
-    auto configuration = readProgramConfiguration(argc, argv);
+long long testCpu(
+        const vector<float3> &classesAverageValues,
+        uchar4 *data, Size2D dataSize,
+        int threadCount, int testCount
+) {
+    auto *results = new char[dataSize.getSize()];
 
-    Size2D dataSize{};
-    uchar4 *data;
-    std::tie(dataSize, data) = readInputData(configuration);
+    long long elapsedSumNs = 0;
+    for (auto i = 0; i < testCount; ++i) {
+        vector<thread> threads;
+        auto start = steady_clock::now();
 
-    auto classesAverageValues = calculateClassesAverageValues(configuration, data, dataSize);
+        for (int j = 0; j < threadCount; ++j) {
+            threads.emplace_back(cpuKernel, classesAverageValues, data, dataSize, results, j, threadCount);
+        }
+        for (auto &th: threads) {
+            th.join();
+        }
 
+        auto end = steady_clock::now();
+        auto elapsedNs = duration_cast<nanoseconds>(end - start).count();
+
+        elapsedSumNs += elapsedNs;
+    }
+
+    delete[] results;
+
+    return elapsedSumNs / testCount;
+}
+
+
+float testGpu(
+        const vector<float3> &classesAverageValues,
+        uchar4 *data, Size2D dataSize,
+        dim3 testGridDim, dim3 testBlockDim,
+        int testCount
+) {
+    char *cudaResults;
+    CSC(cudaMalloc(&cudaResults, sizeof(char) * dataSize.getSize()))
+
+    float elapsedSumMs = 0;
+    for (auto i = 0; i < testCount; ++i) {
+        cudaEvent_t startEvent, endEvent;
+        CSC(cudaEventCreate(&startEvent))
+        CSC(cudaEventCreate(&endEvent))
+        CSC(cudaEventRecord(startEvent))
+        kernel<<<testGridDim, testBlockDim>>>(data, dataSize, cudaResults);
+        CSC(cudaDeviceSynchronize())
+        CSC(cudaGetLastError())
+        CSC(cudaEventRecord(endEvent))
+        CSC(cudaEventSynchronize(endEvent))
+
+        float elapsedMs;
+        CSC(cudaEventElapsedTime(&elapsedMs, startEvent, endEvent))
+        CSC(cudaEventDestroy(startEvent))
+        CSC(cudaEventDestroy(endEvent))
+
+        elapsedSumMs += elapsedMs;
+    }
+
+    CSC(cudaFree(cudaResults))
+
+    return elapsedSumMs / (float) testCount;
+}
+
+
+void runTests(
+        const ProgramConfiguration &configuration,
+        const vector<float3> &classesAverageValues,
+        uchar4 *data, Size2D dataSize
+) {
+    cout << "Input file path: \"" << configuration.getInputFilePath() << "\"" << endl;
+
+    auto elapsedNs = testCpu(classesAverageValues, data, dataSize, 10, 10);
+    cout << "CPU Elapsed time: " << (double) elapsedNs / 1000000 << "ms" << endl;
+
+    tuple<dim3, dim3> testDimConfigurations[] = {
+            {dim3(1, 1),   dim3(32, 1)},
+            {dim3(1, 2),   dim3(32, 1)},
+            {dim3(1, 4),   dim3(32, 1)},
+            {dim3(1, 8),   dim3(32, 1)},
+            {dim3(1, 16),  dim3(32, 1)},
+            {dim3(1, 32),  dim3(32, 1)},
+            {dim3(1, 32),  dim3(32, 2)},
+            {dim3(1, 32),  dim3(32, 4)},
+            {dim3(1, 32),  dim3(32, 8)},
+            {dim3(1, 32),  dim3(32, 16)},
+            {dim3(1, 32),  dim3(32, 32)},
+            {dim3(2, 32),  dim3(32, 32)},
+            {dim3(4, 32),  dim3(32, 32)},
+            {dim3(8, 32),  dim3(32, 32)},
+            {dim3(16, 32), dim3(32, 32)},
+            {dim3(32, 32), dim3(32, 32)},
+    };
+
+    cout << "GPU Elapsed times:" << endl;
+    for (auto &dims: testDimConfigurations) {
+        auto testGridDim = std::get<0>(dims);
+        auto testBlockDim = std::get<1>(dims);
+
+        auto elapsedMs = testGpu(classesAverageValues, data, dataSize, testGridDim, testBlockDim, 10);
+        cout << "(" << testGridDim.x << ", " << testGridDim.y << ") x ("
+             << testBlockDim.x << ", " << testBlockDim.y << "): "
+             << elapsedMs << "ms" << endl;
+    }
+}
+
+
+void runNormal(
+        const ProgramConfiguration &configuration,
+        uchar4 *data, Size2D dataSize,
+        const vector<float3> &classesAverageValues
+) {
     auto classCount = (int) configuration.getClassCount();
     CSC(cudaMemcpyToSymbol(
             cudaClassCount,
@@ -281,6 +421,20 @@ int main(int argc, char *argv[]) {
 
     delete[] data;
     delete[] results;
+}
+
+
+int main(int argc, char *argv[]) {
+    auto configuration = readProgramConfiguration(argc, argv);
+
+    Size2D dataSize{};
+    uchar4 *data;
+    std::tie(dataSize, data) = readInputData(configuration);
+
+    auto classesAverageValues = calculateClassesAverageValues(configuration, data, dataSize);
+
+    runTests(configuration, classesAverageValues, data, dataSize);
+//    runNormal(configuration, data, dataSize, classesAverageValues);
 
     return 0;
 }
