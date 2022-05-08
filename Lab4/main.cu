@@ -20,6 +20,18 @@ using std::setprecision;
 using std::scientific;
 
 
+#define CSC(call)                                                               \
+    {                                                                           \
+        auto error = call;                                                      \
+        if (error != cudaSuccess) {                                             \
+            cerr << "Error " << cudaGetErrorName(error) << " in file \""        \
+                 << __FILE__ << "\", at line " << __LINE__ << ". "              \
+                 << "Message: " << cudaGetErrorString(error) << endl;           \
+            exit(1);                                                            \
+        }                                                                       \
+    }
+
+
 struct doubleAbsComparator {
     __host__ __device__ bool operator()(double a, double b) {
         return abs(a) < abs(b);
@@ -143,8 +155,8 @@ int main(int argc, char *argv[]) {
     std::tie(matrixSize, matrix) = readAndPrepareInput(argc, argv);
 
     double *cudaMatrix;
-    cudaMalloc(&cudaMatrix, sizeof(double) * matrixSize * matrixSize * 2);
-    cudaMemcpy(cudaMatrix, matrix, sizeof(double) * matrixSize * matrixSize * 2, cudaMemcpyHostToDevice);
+    CSC(cudaMalloc(&cudaMatrix, sizeof(double) * matrixSize * matrixSize * 2))
+    CSC(cudaMemcpy(cudaMatrix, matrix, sizeof(double) * matrixSize * matrixSize * 2, cudaMemcpyHostToDevice))
 
     // Forward step
     auto cudaMatrixDevicePtr = thrust::device_pointer_cast(cudaMatrix);
@@ -157,12 +169,12 @@ int main(int argc, char *argv[]) {
         );
         auto maxElementRowIndex = (int) (maxElementPtr - columnPtr);
         double tm;
-        cudaMemcpy(
+        CSC(cudaMemcpy(
                 &tm,
                 cudaMatrix + diagonalIndex * matrixSize + maxElementRowIndex,
                 sizeof(double),
                 cudaMemcpyDeviceToHost
-        );
+        ))
         if (tm == 0) {
             cerr << "Could not calculate inverse matrix. Determinant of matrix equal zero." << endl;
             return 1;
@@ -183,8 +195,8 @@ int main(int argc, char *argv[]) {
     // Last step
     normalizeDiagonalKernel<<<1024, 1024>>>(cudaMatrix, matrixSize);
 
-    cudaMemcpy(matrix, cudaMatrix, sizeof(double) * matrixSize * matrixSize * 2, cudaMemcpyDeviceToHost);
-    cudaFree(cudaMatrix);
+    CSC(cudaMemcpy(matrix, cudaMatrix, sizeof(double) * matrixSize * matrixSize * 2, cudaMemcpyDeviceToHost))
+    CSC(cudaFree(cudaMatrix))
 
     cout << setprecision(10) << scientific;
     writeMatrix(cout, matrix + matrixSize * matrixSize, matrixSize);
