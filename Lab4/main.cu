@@ -114,9 +114,11 @@ __global__ void nullifyRowsBelow(double *matrix, int matrixSize, int diagonalInd
     auto threadIndex = blockDim.x * blockIdx.x + threadIdx.x;
 
     for (auto row = diagonalIndex + 1 + threadIndex; row < matrixSize; row += threadCount) {
-        auto multiplier = matrix[diagonalIndex * matrixSize + row] / matrix[diagonalIndex * matrixSize + diagonalIndex];
+        auto multiplier = matrix[diagonalIndex * matrixSize + row]
+                / matrix[diagonalIndex * matrixSize + diagonalIndex];
         for (auto column = diagonalIndex + 1; column < matrixSize * 2; ++column) {
-            matrix[column * matrixSize + row] -= multiplier * matrix[column * matrixSize + diagonalIndex];
+            matrix[column * matrixSize + row] -=
+                    multiplier * matrix[column * matrixSize + diagonalIndex];
         }
     }
 }
@@ -141,7 +143,8 @@ __global__ void normalizeDiagonal(double *matrix, int matrixSize) {
 
     for (auto diagonalIndex = threadIndex; diagonalIndex < matrixSize; diagonalIndex += threadCount) {
         for (auto column = matrixSize; column < matrixSize * 2; ++column) {
-            matrix[column * matrixSize + diagonalIndex] /= matrix[diagonalIndex * matrixSize + diagonalIndex];
+            matrix[column * matrixSize + diagonalIndex] /=
+                    matrix[diagonalIndex * matrixSize + diagonalIndex];
         }
     }
 }
@@ -412,12 +415,15 @@ void runNormal(double *matrix, int matrixSize) {
                 cudaMemcpyDeviceToHost
         ))
         if (tm == 0) {
-            cerr << "Could not calculate inverse matrix. Determinant of matrix equal zero." << endl;
+            cerr << "Could not calculate inverse matrix. "
+                    "Determinant of matrix equal zero." << endl;
             exit(1);
         }
 
         if (diagonalIndex != maxElementRowIndex) {
-            swapRows<<<1024, 1024>>>(cudaMatrix, matrixSize, diagonalIndex, maxElementRowIndex, diagonalIndex);
+            swapRows<<<1024, 1024>>>(
+                    cudaMatrix, matrixSize,
+                    diagonalIndex, maxElementRowIndex, diagonalIndex);
         }
 
         nullifyRowsBelow<<<1024, 1024>>>(cudaMatrix, matrixSize, diagonalIndex);
